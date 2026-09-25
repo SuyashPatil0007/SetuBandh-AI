@@ -1,6 +1,6 @@
 import os
 import urllib.parse
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # 1. Check if Render (or cloud host) provided a DATABASE_URL environment variable
@@ -30,6 +30,15 @@ engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True
 )
+
+# 3. Automatically enable PostGIS extension before tables are defined/created
+try:
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
+        conn.commit()
+    print("[+] Database: PostGIS extension enabled successfully.")
+except Exception as e:
+    print(f"[-] Database Warning: PostGIS extension initialization bypassed or deferred: {e}")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

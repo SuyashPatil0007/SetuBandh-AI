@@ -275,11 +275,6 @@
       width: 100%; background: var(--bg-card); border: 1px solid var(--border);
       color: var(--text-main); padding: 8px 10px; border-radius: var(--radius-sm); font-size: 0.8rem;
     }
-    .photo-upload {
-      border: 1px dashed var(--border); padding: 12px; text-align: center;
-      border-radius: var(--radius-sm); cursor: pointer; font-size: 0.75rem; color: var(--text-muted);
-    }
-    .photo-upload:hover { border-color: var(--accent-teal); color: var(--text-main); }
 
     .custom-hub-icon {
       background: #0c1825; border: 2px solid var(--accent-teal); border-radius: 50%;
@@ -518,7 +513,10 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
   <script>
-    const BACKEND_BASE = "http://127.0.0.1:8000";
+    // Universal URL resolution: works on localhost AND live on Render HTTPS
+    const isHttps = window.location.protocol === 'https:';
+    const BACKEND_BASE = `${window.location.protocol}//${window.location.host}`;
+    const WS_BASE = `${isHttps ? 'wss:' : 'ws:'}//${window.location.host}`;
 
     const I18N = {
       en: {
@@ -555,10 +553,10 @@
         appSub: "पूर्वोत्तर विकास मंत्रालय · रैंडम फ़ॉरेस्ट सड़क बुद्धिमत्ता एवं लाइव सिंक्रोनाइज़र",
         corridors: "कॉरिडोर", risk: "गंभीर जोखिम", active: "सक्रिय वाहन", alerts: "लाइव अलर्ट",
         reportBtn: "+ स्थानीय रिपोर्ट", inspection: "कॉरिडोर निरीक्षण:", map2: "मानचित्र 2: क्षेत्रीय नेटवर्क",
-        map1: "मानचित्र 1: एআই नेविगेशन डिटूर", telemetry: "एआई टेलीमेट्री नियंत्रण", rainTitle: "वर्षा टेलीमेट्री:",
-        liveWeatherBtn: "लाइव मौसम", gisLayers: "सक्रिय जीआईएस परतें", detourTitle: "एআই डिटूर अनुकूलन",
+        map1: "मानचित्र 1: एआई नेविगेशन डिटूर", telemetry: "एआई टेलीमेट्री नियंत्रण", rainTitle: "वर्षा टेलीमेट्री:",
+        liveWeatherBtn: "लाइव मौसम", gisLayers: "सक्रिय जीआईएस परतें", detourTitle: "एआई डिटूर अनुकूलन",
         dispatchBtn: "चालक को फ़ोन अलर्ट भेजें", alertsHead: "पूर्वानुमान अलर्ट", telemetryHead: "वाहन टेलीमेट्री",
-        verdictHead: "एআই मार्ग निर्णय", optimalLegend: "सुरक्षित (<30)", advisoryLegend: "परामर्श (30-44)",
+        verdictHead: "एआई मार्ग निर्णय", optimalLegend: "सुरक्षित (<30)", advisoryLegend: "परामर्श (30-44)",
         blockedLegend: "अवरुद्ध (≥45)", bypassLegend: "बाईपास"
       }
     };
@@ -644,7 +642,7 @@
     ];
 
     let rainIntensity = 45;
-    let activeMapMode = 'single';
+    let activeMapMode = 'network';
     let currentDetourPayload = null;
 
     function getRiskColor(val) {
@@ -667,7 +665,7 @@
     const map = L.map('leafletMap', { center: [25.6, 92.8], zoom: 7, zoomControl: true });
 
     const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics', maxZoom: 18
+      attribution: 'Tiles &copy; Esri, Maxar', maxZoom: 18
     }).addTo(map);
 
     const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -692,10 +690,10 @@
     const vehicleMarkerPool = {};
     let viewportDebounceTimer = null;
 
-    // Connect WebSocket Mesh with Auto-Reconnect
+    // Connect WebSocket Mesh with dynamic URL
     let socket;
     function connectMesh() {
-      const wsUrl = `ws://${window.location.hostname || '127.0.0.1'}:8000/ws/simulation`;
+      const wsUrl = `${WS_BASE}/ws/simulation`;
       socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
@@ -703,6 +701,8 @@
         tag.innerHTML = '<i class="fa-solid fa-bolt"></i> REALTIME MESH ACTIVE';
         tag.style.borderColor = 'var(--accent-teal)';
         tag.style.color = 'var(--accent-teal)';
+        // Send initial sync handshake
+        pushCorridorChange();
       };
 
       socket.onmessage = (event) => {
@@ -741,8 +741,8 @@
       currentDetourPayload = payload;
       rainIntensity = payload.rain_intensity;
 
-      document.getElementById('searchFromHub').value = payload.origin_key;
-      document.getElementById('searchToHub').value = payload.dest_key;
+      if (payload.origin_key) document.getElementById('searchFromHub').value = payload.origin_key;
+      if (payload.dest_key) document.getElementById('searchToHub').value = payload.dest_key;
       document.getElementById('rainSlider').value = payload.rain_intensity;
       document.getElementById('rainValDisplay').textContent = `${payload.rain_intensity} mm`;
 
@@ -755,6 +755,7 @@
     }
 
     function renderNavigationRoutes(payload) {
+      if (!payload || !payload.all_routes || payload.all_routes.length === 0) return;
       layerGroupRoads.clearLayers();
       layerGroupAlternates.clearLayers();
       layerGroupRouteEndpoints.clearLayers();
@@ -766,8 +767,8 @@
 
       const routes = payload.all_routes;
       const rDirect = routes[0];
-      const rBypass1 = routes[1];
-      const rBypass2 = routes[2];
+      const rBypass1 = routes[1] || routes[0];
+      const rBypass2 = routes[2] || routes[0];
 
       const primPoly = L.polyline(rDirect.waypoints, {
         color: rDirect.status === 'BLOCKED' ? '#ef4444' : '#22c55e',
@@ -794,7 +795,7 @@
 
       map.fitBounds(L.featureGroup([primPoly, polyBypass1, polyBypass2]).getBounds(), { padding: [50, 50] });
 
-      const det = payload.suggested_detour;
+      const det = payload.suggested_detour || rDirect;
       const pill = document.getElementById('tripStatusPill');
       const passable = document.getElementById('tripPassableDisplay');
 
@@ -841,8 +842,8 @@
     }
 
     function pushCorridorChange() {
-      const from = document.getElementById('searchFromHub').value;
-      const to = document.getElementById('searchToHub').value;
+      const from = document.getElementById('searchFromHub').value || "SHL";
+      const to = document.getElementById('searchToHub').value || "KOH";
       if (from === to) return;
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ action: "SET_CORRIDOR", from: from, to: to }));
@@ -921,11 +922,17 @@
             targetPos = [liveFleetMap[v.id].lat, liveFleetMap[v.id].lng];
             speedText = `${liveFleetMap[v.id].speed} km/h (GPS)`;
           } else {
-            const corridor = CORRIDORS.find(c => c.id === v.corridor);
             const roadPoints = roadCache[v.corridor] || [];
             if (roadPoints.length > 0) {
               const targetIndex = Math.min(Math.floor(v.progress * roadPoints.length), roadPoints.length - 1);
               targetPos = roadPoints[targetIndex];
+            } else {
+              const corridor = CORRIDORS.find(c => c.id === v.corridor);
+              if (corridor) {
+                const h1 = REGIONAL_HUBS[corridor.from];
+                const h2 = REGIONAL_HUBS[corridor.to];
+                targetPos = [h1.lat + (h2.lat - h1.lat) * v.progress, h1.lng + (h2.lng - h1.lng) * v.progress];
+              }
             }
             speedText = `${liveFleetMap[v.id]?.speed || 45} km/h`;
           }
@@ -1024,23 +1031,23 @@
       const from = REGIONAL_HUBS[corridor.from];
       const to = REGIONAL_HUBS[corridor.to];
       
-      const localUrl = `http://127.0.0.1:5000/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
       const fallbackUrl = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
 
-      for (const u of [localUrl, fallbackUrl]) {
-        try {
-          const res = await fetch(u);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.routes && data.routes.length > 0) {
-              const coords = data.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
-              roadCache[corridor.id] = coords;
-              return coords;
-            }
+      try {
+        const res = await fetch(fallbackUrl);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.routes && data.routes.length > 0) {
+            const coords = data.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
+            roadCache[corridor.id] = coords;
+            return coords;
           }
-        } catch (err) {}
-      }
-      return [[from.lat, from.lng], [to.lat, to.lng]];
+        }
+      } catch (err) {}
+      
+      const straightLine = [[from.lat, from.lng], [to.lat, to.lng]];
+      roadCache[corridor.id] = straightLine;
+      return straightLine;
     }
 
     async function loadPostGISHazardZones() {
@@ -1221,8 +1228,11 @@
     renderVehiclesList();
     renderAlerts();
     renderDistrictRiskStrip();
-    setMapMode('single');
-    setTimeout(() => map.invalidateSize(), 200);
+    setMapMode('network');
+    setTimeout(() => {
+      map.invalidateSize();
+      renderSatelliteGIS();
+    }, 250);
   </script>
 </body>
 </html>

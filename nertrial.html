@@ -134,6 +134,11 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
+    // Universal URL resolution: works on localhost AND live on Render HTTPS
+    const isHttps = window.location.protocol === 'https:';
+    const BACKEND_BASE = `${window.location.protocol}//${window.location.host}`;
+    const WS_BASE = `${isHttps ? 'wss:' : 'ws:'}//${window.location.host}`;
+
     const REGIONAL_HUBS = {
       GAU: { name: 'Guwahati', lat: 26.1445, lng: 91.7362 },
       SHL: { name: 'Shillong', lat: 25.5788, lng: 91.8933 },
@@ -159,13 +164,13 @@
 
     let socket;
     function connectMesh() {
-      // Connects cleanly to the active host over port 8000
-      const wsUrl = `ws://${window.location.hostname || '127.0.0.1'}:8000/ws/simulation`;
+      const wsUrl = `${WS_BASE}/ws/simulation`;
       socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
         document.getElementById('wsStatusTag').innerHTML = '<i class="fa-solid fa-link"></i> LIVE MESH ACTIVE';
         document.getElementById('wsStatusTag').style.color = 'var(--accent-teal)';
+        pushUserCorridor();
       };
 
       socket.onmessage = (event) => {
@@ -186,15 +191,17 @@
     connectMesh();
 
     function renderSynchronizedRoute(payload) {
-      document.getElementById('hubOrigin').value = payload.origin_key;
-      document.getElementById('hubDestination').value = payload.dest_key;
+      if (!payload || !payload.all_routes || payload.all_routes.length === 0) return;
+
+      if (payload.origin_key) document.getElementById('hubOrigin').value = payload.origin_key;
+      if (payload.dest_key) document.getElementById('hubDestination').value = payload.dest_key;
 
       layerRoutes.clearLayers();
       layerMarkers.clearLayers();
 
       const rDirect = payload.all_routes[0];
-      const rBypass1 = payload.all_routes[1];
-      const rBypass2 = payload.all_routes[2];
+      const rBypass1 = payload.all_routes[1] || payload.all_routes[0];
+      const rBypass2 = payload.all_routes[2] || payload.all_routes[0];
 
       const pDirect = L.polyline(rDirect.waypoints, {
         color: rDirect.status === 'BLOCKED' ? '#ef4444' : '#22c55e',
@@ -245,8 +252,8 @@
     }
 
     function pushUserCorridor() {
-      const from = document.getElementById('hubOrigin').value;
-      const to = document.getElementById('hubDestination').value;
+      const from = document.getElementById('hubOrigin').value || "SHL";
+      const to = document.getElementById('hubDestination').value || "KOH";
       if (from === to) return;
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ action: "SET_CORRIDOR", from: from, to: to }));
@@ -257,7 +264,7 @@
       const oKey = document.getElementById('hubOrigin').value;
       const hub = REGIONAL_HUBS[oKey];
       try {
-        await fetch(`http://${window.location.hostname || '127.0.0.1'}:8000/api/incidents`, {
+        await fetch(`${BACKEND_BASE}/api/incidents`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

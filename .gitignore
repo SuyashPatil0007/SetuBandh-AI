@@ -1,0 +1,17 @@
+# Virtual Environment & Bytecode
+venv/
+__pycache__/
+*.pyc
+
+# Heavy Spatial Binaries & Compiled OSRM Graphs (>100MB)
+*.osm.pbf
+*.osrm*
+*.exe
+osmconvert64.exe
+
+#large files
+.mp4
+
+# Environment secrets & local logs
+.env
+*.log

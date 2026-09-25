@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setubandh AI - Regional Command &amp; Live Synchronization Center</title>
+
+  <!-- Leaflet CSS & Fonts -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-base: #070e17;
+      --bg-panel: #0c1825;
+      --bg-card: #122133;
+      --border: #1e3247;
+      --border-focus: #2d4c6b;
+      --text-main: #f0f4f8;
+      --text-muted: #8ba2b8;
+      --text-faint: #52677e;
+      --accent-teal: #2dd4bf;
+      --accent-marigold: #fbbf24;
+      --risk-low: #22c55e;
+      --risk-med: #eab308;
+      --risk-high: #f97316;
+      --risk-crit: #ef4444;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .mono { font-family: 'IBM Plex Mono', monospace; }
+    .display { font-family: 'Space Grotesk', sans-serif; }
+
+    header {
+      background: rgba(12, 24, 37, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .branding { display: flex; align-items: center; gap: 12px; }
+    .status-pulse {
+      width: 10px; height: 10px; background: var(--accent-teal);
+      border-radius: 50%; position: relative;
+    }
+    .status-pulse::after {
+      content: ''; position: absolute; inset: -4px;
+      border: 2px solid var(--accent-teal); border-radius: 50%;
+      animation: ping 2s infinite ease-out;
+    }
+    @keyframes ping {
+      0% { transform: scale(0.6); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+    .title-group h1 { font-size: 1.15rem; font-weight: 700; color: #fff; }
+    .title-group h1 span { color: var(--accent-teal); }
+    .title-group p { font-size: 0.7rem; color: var(--text-muted); letter-spacing: 0.8px; }
+
+    .kpi-container { display: flex; gap: 20px; }
+    .kpi-card { text-align: center; min-width: 55px; }
+    .kpi-card .val { font-family: 'Space Grotesk', sans-serif; font-size: 1.15rem; font-weight: 700; }
+    .kpi-card .label { font-size: 0.65rem; color: var(--text-muted); }
+
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .btn {
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-main); padding: 7px 12px; border-radius: var(--radius-sm);
+      font-size: 0.78rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; gap: 7px; transition: all 0.2s;
+    }
+    .btn:hover { border-color: var(--border-focus); background: #16283d; }
+    .btn-primary { background: var(--accent-marigold); color: #1a1200; border-color: var(--accent-marigold); }
+    .btn-primary:hover { background: #e5ab1f; }
+    .btn-teal { background: #134e48; color: var(--accent-teal); border-color: #1e6c64; }
+    .btn-teal:hover { background: #186058; }
+
+    .ai-badge {
+      background: rgba(45, 212, 191, 0.12);
+      border: 1px solid var(--accent-teal);
+      color: var(--accent-teal);
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .lang-select {
+      background: #112338;
+      border: 1px solid var(--border);
+      color: var(--accent-marigold);
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .search-nav-strip {
+      background: #09131f;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .search-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .search-select {
+      background: var(--bg-panel); border: 1px solid var(--border);
+      color: var(--text-main); padding: 6px 10px; border-radius: var(--radius-sm);
+      font-size: 0.78rem; outline: none; min-width: 155px;
+    }
+    .search-select:focus { border-color: var(--accent-teal); }
+    .map-mode-tabs {
+      display: flex; gap: 6px; background: var(--bg-panel);
+      padding: 3px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    }
+    .mode-tab {
+      background: transparent; border: none; color: var(--text-muted);
+      padding: 5px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+    }
+    .mode-tab.active { background: var(--accent-teal); color: #070e17; }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      gap: 14px;
+      padding: 14px 20px;
+      flex: 1;
+    }
+
+    .panel {
+      background: var(--bg-panel); border: 1px solid var(--border);
+      border-radius: var(--radius-md); display: flex; flex-direction: column; overflow: hidden;
+    }
+    .panel-header {
+      padding: 12px 14px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .panel-header h2 {
+      font-size: 0.78rem; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 700;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .panel-body { padding: 14px; overflow-y: auto; flex: 1; }
+
+    .left-stack { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+    .control-block { margin-bottom: 14px; }
+    .control-block label { display: block; font-size: 0.75rem; margin-bottom: 6px; font-weight: 600; }
+    input[type=range] { width: 100%; accent-color: var(--accent-marigold); }
+    .layer-item { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 0.78rem; cursor: pointer; }
+    .layer-item input { accent-color: var(--accent-teal); }
+
+    .alternate-route-docked {
+      background: var(--bg-panel); border: 1px solid var(--accent-teal);
+      border-radius: var(--radius-md); padding: 12px; box-shadow: var(--shadow);
+    }
+    .alternate-route-docked h4 {
+      font-size: 0.78rem; font-weight: 700; color: var(--accent-teal);
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .route-card {
+      background: var(--bg-card); border-radius: var(--radius-sm);
+      padding: 9px; margin-bottom: 7px; font-size: 0.74rem; border-left: 3px solid #64748b;
+    }
+    .route-card.selected { border-left-color: var(--accent-teal); background: #132a3e; }
+    .route-card.blocked { border-left-color: var(--risk-crit); }
+    .route-header { display: flex; justify-content: space-between; font-weight: 600; }
+    .route-meta { display: flex; gap: 8px; font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; flex-wrap: wrap; }
+
+    .map-wrapper {
+      position: relative; width: 100%; min-height: 520px;
+      border-radius: var(--radius-md); border: 1px solid var(--border); overflow: hidden;
+      background: #0c1825;
+    }
+    #leafletMap { width: 100%; height: 100%; min-height: 520px; z-index: 10; }
+    .leaflet-control-layers {
+      background: rgba(12, 24, 37, 0.9) !important; color: var(--text-main) !important;
+      border: 1px solid var(--border) !important; border-radius: var(--radius-sm) !important;
+    }
+    .leaflet-control-layers label { color: var(--text-main) !important; font-size: 0.75rem; }
+
+    .map-overlay-badge {
+      position: absolute; top: 12px; right: 12px; z-index: 1000;
+      background: rgba(12, 24, 37, 0.85); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 6px 10px; font-size: 0.7rem;
+      display: flex; gap: 10px; backdrop-filter: blur(6px);
+    }
+    .map-overlay-badge span { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    .trip-info-box {
+      position: absolute; top: 12px; left: 60px; z-index: 1000;
+      background: rgba(12, 24, 37, 0.92); border: 1px solid var(--accent-teal);
+      border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.75rem;
+      backdrop-filter: blur(6px); display: none; max-width: 360px;
+    }
+    .trip-info-box.active { display: block; }
+    .trip-info-box h5 { color: var(--accent-teal); font-size: 0.82rem; margin-bottom: 4px; display:flex; justify-content:space-between; }
+
+    .alert-feed { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; }
+    .alert-node {
+      border-left: 3px solid var(--risk-low); background: var(--bg-card);
+      padding: 8px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 0.75rem;
+    }
+    .alert-node.critical { border-color: var(--risk-crit); }
+    .alert-node.warning { border-color: var(--risk-high); }
+    .alert-meta { font-size: 0.65rem; color: var(--text-muted); margin-top: 3px; display: flex; justify-content: space-between; }
+
+    .vehicle-row {
+      padding: 8px 10px; background: var(--bg-card); border-radius: var(--radius-sm);
+      margin-bottom: 6px; border: 1px solid transparent; font-size: 0.78rem;
+    }
+    .vehicle-head { display: flex; justify-content: space-between; font-weight: 600; }
+    .vehicle-sub { font-size: 0.68rem; color: var(--text-muted); margin-top: 3px; }
+    .badge-status { font-size: 0.62rem; padding: 2px 5px; border-radius: 3px; font-weight: 700; }
+    .badge-ontime { background: rgba(34, 197, 94, 0.15); color: var(--risk-low); }
+    .badge-delay { background: rgba(239, 68, 68, 0.15); color: var(--risk-crit); }
+
+    .district-risk-strip {
+      background: var(--bg-panel); border-top: 1px solid var(--border); padding: 10px 20px;
+    }
+    .district-strip-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .district-strip-title {
+      font-size: 0.72rem; color: var(--text-muted); font-weight: 700;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .district-chips-container { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+    .district-chip {
+      flex: 0 0 auto; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 6px 10px; min-width: 120px;
+    }
+    .district-chip .d-head { display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 600; }
+    .district-chip .d-bar-bg { width: 100%; height: 4px; background: #07111c; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+    .district-chip .d-bar-fill { height: 100%; width: 0%; border-radius: 2px; transition: width 0.3s; }
+    .district-chip .d-meta { display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; }
+
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(4px); z-index: 2000; display: none; align-items: center; justify-content: center;
+    }
+    .modal-backdrop.active { display: flex; }
+    .modal {
+      background: var(--bg-panel); border: 1px solid var(--border);
+      border-radius: var(--radius-md); width: 100%; max-width: 460px; padding: 20px; box-shadow: var(--shadow);
+    }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 5px; font-weight: 600; }
+    .form-control {
+      width: 100%; background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-main); padding: 8px 10px; border-radius: var(--radius-sm); font-size: 0.8rem;
+    }
+    .photo-upload {
+      border: 1px dashed var(--border); padding: 12px; text-align: center;
+      border-radius: var(--radius-sm); cursor: pointer; font-size: 0.75rem; color: var(--text-muted);
+    }
+    .photo-upload:hover { border-color: var(--accent-teal); color: var(--text-main); }
+
+    .custom-hub-icon {
+      background: #0c1825; border: 2px solid var(--accent-teal); border-radius: 50%;
+      color: #fff; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 10px rgba(45, 212, 191, 0.7);
+    }
+    .custom-vehicle-icon {
+      background: var(--accent-marigold); color: #070e17; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 10px rgba(251, 191, 36, 0.8); transition: all 0.3s ease;
+    }
+    .custom-vehicle-icon.delayed {
+      background: var(--risk-crit); color: #fff; box-shadow: 0 0 10px rgba(239, 68, 68, 0.9);
+    }
+    .pin-origin {
+      background: var(--risk-low); border: 2px solid #fff; border-radius: 50%;
+      color: #070e17; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 12px var(--risk-low);
+    }
+    .pin-dest {
+      background: var(--risk-crit); border: 2px solid #fff; border-radius: 50%;
+      color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 12px var(--risk-crit);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="branding">
+      <div class="status-pulse"></div>
+      <div class="title-group">
+        <h1 id="uiAppTitle">Setubandh <span>AI</span></h1>
+        <p class="mono" id="uiAppSub">MDoNER · Random Forest Roadway Intelligence &amp; Live Synchronizer</p>
+      </div>
+    </div>
+
+    <div class="kpi-container">
+      <div class="kpi-card"><div class="val mono" id="kpiCorridors">14</div><div class="label" id="lblCorridors">Corridors</div></div>
+      <div class="kpi-card"><div class="val mono" id="kpiAtRisk" style="color: var(--risk-high)">2</div><div class="label" id="lblRisk">Critical Risk</div></div>
+      <div class="kpi-card"><div class="val mono" id="kpiVehicles">6</div><div class="label" id="lblActive">GPS Active</div></div>
+      <div class="kpi-card"><div class="val mono" id="kpiAlerts" style="color: var(--accent-teal)">3</div><div class="label" id="lblAlerts">Live Alerts</div></div>
+    </div>
+
+    <div class="header-actions">
+      <select class="lang-select" id="langSelector" onchange="changeLanguage(this.value)">
+        <option value="en">English (ENG)</option>
+        <option value="as">অসমীয়া (Assamese)</option>
+        <option value="bn">বাংলা (Bengali)</option>
+        <option value="hi">हिन्दी (Hindi)</option>
+      </select>
+      <span class="ai-badge" id="wsTag"><i class="fa-solid fa-satellite-dish"></i> CONNECTING MESH...</span>
+      <button class="btn btn-primary" id="openReportModalBtn"><i class="fa-solid fa-camera"></i> <span id="lblReportBtn">+ Local Report</span></button>
+    </div>
+  </header>
+
+  <div class="search-nav-strip">
+    <div class="search-group">
+      <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted);">
+        <i class="fa-solid fa-magnifying-glass-location" style="color:var(--accent-teal)"></i> 
+        <span id="lblInspection">Corridor Inspection:</span>
+      </span>
+      <select class="search-select" id="searchFromHub" onchange="pushCorridorChange()"></select>
+      <i class="fa-solid fa-arrow-right" style="font-size: 0.7rem; color: var(--text-muted);"></i>
+      <select class="search-select" id="searchToHub" onchange="pushCorridorChange()"></select>
+    </div>
+
+    <div class="map-mode-tabs">
+      <button class="mode-tab active" id="btnModeNetwork" onclick="setMapMode('network')">
+        <i class="fa-solid fa-network-wired"></i> <span id="lblMap2">Map 2: Regional Network</span>
+      </button>
+      <button class="mode-tab" id="btnModeSingle" onclick="setMapMode('single')">
+        <i class="fa-solid fa-route"></i> <span id="lblMap1">Map 1: AI Navigation Detour</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="dashboard-grid">
+    <div class="left-stack">
+      <div class="panel" style="flex: 1;">
+        <div class="panel-header">
+          <h2><i class="fa-solid fa-sliders"></i> <span id="lblTelemetry">AI Telemetry Control</span></h2>
+        </div>
+        <div class="panel-body">
+          <div class="control-block">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+              <label style="margin-bottom:0;" id="lblRainTitle">Live Rainfall Telemetry: <span class="mono" id="rainValDisplay">45 mm</span></label>
+              <button class="btn btn-teal" id="btnSyncLiveWeather" style="padding: 3px 7px; font-size: 0.65rem;" title="Fetch Live Open-Meteo Satellite Precipitation">
+                <i class="fa-solid fa-cloud-showers-heavy"></i> <span id="lblLiveWeatherBtn">Live Weather</span>
+              </button>
+            </div>
+            <div class="range-wrap">
+              <input type="range" id="rainSlider" min="0" max="180" value="45" oninput="pushRainChange(this.value)">
+              <span style="font-size: 0.65rem; color: var(--text-faint);" id="lblFeatureNote">Direct feature input into Random Forest model inference.</span>
+            </div>
+          </div>
+
+          <div class="control-block">
+            <label id="lblGisLayers">Active GIS Layers</label>
+            <label class="layer-item"><input type="checkbox" id="chkRoads" checked> <span id="lblLyrRoads">Roadway Corridors (OSM)</span></label>
+            <label class="layer-item"><input type="checkbox" id="chkRisk" checked> <span id="lblLyrHazards">PostGIS Hazard Zones (512 Sites)</span></label>
+            <label class="layer-item"><input type="checkbox" id="chkVehicles" checked> <span id="lblLyrConvoys">Live Supply Convoys</span></label>
+            <label class="layer-item"><input type="checkbox" id="chkReports" checked> <span id="lblLyrReports">Ground Incidents</span></label>
+            <label class="layer-item"><input type="checkbox" id="chkAlternate" checked> <span id="lblLyrDetours">AI Optimized Detours</span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="alternate-route-docked" id="altRouteBox">
+        <h4>
+          <span><i class="fa-solid fa-route"></i> <span id="lblDetourTitle">AI Detour Optimization (0.7R + 0.3D)</span></span>
+          <span class="badge-status badge-delay" id="altStatusBadge">STANDBY</span>
+        </h4>
+        <div style="font-size: 0.68rem; color: var(--text-muted); margin-bottom: 6px;">
+          <span id="lblSectorPrefix">Sector</span>: <strong id="detourSectorLabel">Select Origin &amp; Destination</strong>
+        </div>
+
+        <div class="route-card" id="primaryRouteCard">
+          <div class="route-header">
+            <span id="primaryRouteTitle">Primary Route: --</span>
+            <span style="color:var(--risk-crit); font-weight:700;" id="primaryRiskScore">--</span>
+          </div>
+          <div class="route-meta">
+            <span><i class="fa-solid fa-road"></i> <span id="primaryDistTxt">--</span></span>
+            <span><i class="fa-regular fa-clock"></i> <span id="primaryEtaTxt">--</span></span>
+            <span><i class="fa-solid fa-triangle-exclamation"></i> <span id="primaryStatusTxt">Awaiting Scan</span></span>
+          </div>
+        </div>
+
+        <div class="route-card selected" id="suggestedAltRouteCard">
+          <div class="route-header">
+            <span><i class="fa-solid fa-shield-halved" style="color:var(--accent-teal)"></i> <span id="altRouteTitleTxt">Suggested Detour: --</span></span>
+            <span style="color:var(--risk-low); font-weight:700;" id="altRiskScore">--</span>
+          </div>
+          <div class="route-meta">
+            <span><i class="fa-solid fa-road"></i> <span id="altDistTxt">--</span></span>
+            <span><i class="fa-regular fa-clock"></i> <span id="altEtaTxt">--</span></span>
+            <span><i class="fa-solid fa-chart-line"></i> Score: <span id="altCompositeTxt" class="mono">--</span></span>
+          </div>
+        </div>
+
+        <button class="btn btn-teal" style="width: 100%; justify-content: center; margin-top: 6px;" id="applyRerouteBtn">
+          <i class="fa-solid fa-phone-volume"></i> <span id="lblDispatchBtn">Broadcast Telephony Detour Alert</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="map-wrapper">
+      <div class="map-overlay-badge">
+        <span><div class="dot" style="background:var(--risk-low)"></div> <span id="lblLegendOptimal">Optimal (&lt;30)</span></span>
+        <span><div class="dot" style="background:var(--risk-med)"></div> <span id="lblLegendAdvisory">Advisory (30-44)</span></span>
+        <span><div class="dot" style="background:var(--risk-crit)"></div> <span id="lblLegendBlocked">Blocked (≥45)</span></span>
+        <span><div class="dot" style="background:var(--accent-teal)"></div> <span id="lblLegendBypass">AI Bypass</span></span>
+      </div>
+
+      <div class="trip-info-box" id="tripInfoBox">
+        <h5>
+          <span><i class="fa-solid fa-location-crosshairs"></i> <span id="lblVerdictHead">AI Routing Verdict</span></span>
+          <span class="badge-status badge-ontime" id="tripStatusPill">OPTIMAL</span>
+        </h5>
+        <div style="margin: 4px 0; color: #fff; font-weight: 600;" id="tripNameDisplay">--</div>
+        <div style="color: var(--text-muted); font-size: 0.7rem;" id="tripDetailDisplay">Select origin and destination to plan corridor</div>
+        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); display:flex; justify-content:space-between;">
+          <span>Model Risk: <b id="tripRiskDisplay">--</b></span>
+          <span style="color:var(--accent-teal);" id="tripPassableDisplay">Passable</span>
+        </div>
+      </div>
+
+      <div id="leafletMap"></div>
+    </div>
+
+    <div class="panel" style="gap: 12px; background: transparent; border: none;">
+      <div class="panel" style="flex: 1;">
+        <div class="panel-header">
+          <h2><i class="fa-solid fa-triangle-exclamation"></i> <span id="lblAlertsHead">Predictive Alerts</span></h2>
+        </div>
+        <div class="panel-body alert-feed" id="alertFeedContainer"></div>
+      </div>
+
+      <div class="panel" style="flex: 1;">
+        <div class="panel-header">
+          <h2><i class="fa-solid fa-truck-fast"></i> <span id="lblTelemetryHead">Consignment Telemetry</span></h2>
+        </div>
+        <div class="panel-body" id="vehicleListContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="district-risk-strip">
+    <div class="district-strip-header">
+      <div class="district-strip-title">
+        <i class="fa-solid fa-satellite" style="color:var(--accent-marigold)"></i>
+        <span id="lblDistrictStrip">District Accessibility &amp; Disruption Risk Index (Road-Validated)</span>
+      </div>
+      <div style="font-size: 0.68rem; color: var(--text-muted);" id="lblMonitoredCount">12 Lifeline Sectors Monitored</div>
+    </div>
+    <div class="district-chips-container" id="districtChipsContainer"></div>
+  </div>
+
+  <div class="modal-backdrop" id="reportModal">
+    <div class="modal">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-size: 0.95rem; font-weight:700;" id="lblModalTitle">Crowdsourced Incident &amp; Hazard Report</h3>
+        <i class="fa-solid fa-xmark" style="cursor:pointer;" id="closeReportModalBtn"></i>
+      </div>
+
+      <form id="incidentForm">
+        <div class="form-group">
+          <label id="lblFormCorridor">Target Corridor / Location</label>
+          <select class="form-control" id="formCorridor" required></select>
+        </div>
+
+        <div class="form-group">
+          <label id="lblFormClassification">Incident Classification</label>
+          <select class="form-control" id="formType">
+            <option value="Landslide">Landslide / Mudslip</option>
+            <option value="Flash Flood">Flash Flood / Waterlogging</option>
+            <option value="Bridge Damage">Bridge / Culvert Structural Damage</option>
+            <option value="Heavy Congestion">Heavy Gridlock / Fallen Tree</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label id="lblFormNotes">Ground Notes / Severity</label>
+          <input type="text" class="form-control" id="formNotes" placeholder="e.g., Sludge over 100m, single lane blocked" required>
+        </div>
+
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+          <button type="button" class="btn" id="cancelModalBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-satellite-dish"></i> <span id="lblSubmitReportBtn">Broadcast to Backend</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <script>
+    const BACKEND_BASE = "http://127.0.0.1:8000";
+
+    const I18N = {
+      en: {
+        appSub: "MDoNER · Random Forest Roadway Intelligence & Live Synchronizer",
+        corridors: "Corridors", risk: "Critical Risk", active: "GPS Active", alerts: "Live Alerts",
+        reportBtn: "+ Local Report", inspection: "Corridor Inspection:", map2: "Map 2: Regional Network",
+        map1: "Map 1: AI Navigation Detour", telemetry: "AI Telemetry Control", rainTitle: "Live Rainfall Telemetry:",
+        liveWeatherBtn: "Live Weather", gisLayers: "Active GIS Layers", detourTitle: "AI Detour Optimization (0.7R + 0.3D)",
+        dispatchBtn: "Broadcast Telephony Detour Alert", alertsHead: "Predictive Alerts", telemetryHead: "Consignment Telemetry",
+        verdictHead: "AI Routing Verdict", optimalLegend: "Optimal (<30)", advisoryLegend: "Advisory (30-44)",
+        blockedLegend: "Blocked (≥45)", bypassLegend: "AI Bypass"
+      },
+      as: {
+        appSub: "উত্তৰ-পূব পৰিষদ · ৰেণ্ডম ফৰেষ্ট পথ চোৰাংচোৱা আৰু লাইভ চিনক্ৰনাইজাৰ",
+        corridors: "কৰিডৰসমূহ", risk: "বিপদসংকুল পথ", active: "সক্ৰিয় কনভয়", alerts: "সতৰ্কবাৰ্তা",
+        reportBtn: "+ তথ্য দাখিল", inspection: "কৰিডৰ নিৰীক্ষণ:", map2: "মানচিত্ৰ ২: আঞ্চলিক নেটৱৰ্ক",
+        map1: "মানচিত্ৰ ১: বিকল্প পথ নিৰ্ধাৰণ", telemetry: "এআই টেলিমেট্ৰি নিয়ন্ত্ৰণ", rainTitle: "বৰষুণৰ পৰিমাণ:",
+        liveWeatherBtn: "লাইভ বতৰ", gisLayers: "সক্ৰিয় জিআইএছ স্তৰসমূহ", detourTitle: "এআই বিকল্প পথ নিৰ্ধাৰণ",
+        dispatchBtn: "চালকক সতৰ্কবাৰ্তা প্ৰেৰণ কৰক", alertsHead: "পূৰ্বানুমান সতৰ্কতা", telemetryHead: "কনভয় নিৰীক্ষণ",
+        verdictHead: "এআই পথ নিৰ্ণয়", optimalLegend: "সুৰক্ষিত (<৩০)", advisoryLegend: "সতৰ্কতা (৩০-৪৪)",
+        blockedLegend: "অৱৰোধ (≥৪৫)", bypassLegend: "বিকল্প পথ"
+      },
+      bn: {
+        appSub: "উত্তর-পূর্বাঞ্চল উন্নয়ন · র্যান্ডম ফরেস্ট কৃত্রিম বুদ্ধিমত্তা ও লাইভ রুট সিঙ্ক",
+        corridors: "করিডোরসমূহ", risk: "বিপজ্জনক পথ", active: "সক্রিয় কনভয়", alerts: "লাইভ সতর্কতা",
+        reportBtn: "+ স্থানীয় রিপোর্ট", inspection: "করিডোর পরিদর্শন:", map2: "মানচিত্র ২: আঞ্চলিক নেটওয়ার্ক",
+        map1: "মানচিত্র ১: এআই নেভিগেশন", telemetry: "এআই টেলিমেট্রি কন্ট্রোল", rainTitle: "বৃষ্টিপাতের পরিমাণ:",
+        liveWeatherBtn: "লাইভ আবহাওয়া", gisLayers: "সক্রিয় জিআইএস স্তরসমূহ", detourTitle: "এআই বিকল্প রুট পরিকল্পনা",
+        dispatchBtn: "চালকের কাছে সতর্কতা পাঠান", alertsHead: "পূর্বাভাস সতর্কতা", telemetryHead: "কনভয় টেলিমেট্রি",
+        verdictHead: "এআই রুট রায়", optimalLegend: "নিরাপদ (<৩০)", advisoryLegend: "সতর্কবার্তা (৩০-৪৪)",
+        blockedLegend: "অবরুদ্ধ (≥৪৫)", bypassLegend: "বাইপাস"
+      },
+      hi: {
+        appSub: "पूर्वोत्तर विकास मंत्रालय · रैंडम फ़ॉरेस्ट सड़क बुद्धिमत्ता एवं लाइव सिंक्रोनाइज़र",
+        corridors: "कॉरिडोर", risk: "गंभीर जोखिम", active: "सक्रिय वाहन", alerts: "लाइव अलर्ट",
+        reportBtn: "+ स्थानीय रिपोर्ट", inspection: "कॉरिडोर निरीक्षण:", map2: "मानचित्र 2: क्षेत्रीय नेटवर्क",
+        map1: "मानचित्र 1: एআই नेविगेशन डिटूर", telemetry: "एआई टेलीमेट्री नियंत्रण", rainTitle: "वर्षा टेलीमेट्री:",
+        liveWeatherBtn: "लाइव मौसम", gisLayers: "सक्रिय जीआईएस परतें", detourTitle: "एআই डिटूर अनुकूलन",
+        dispatchBtn: "चालक को फ़ोन अलर्ट भेजें", alertsHead: "पूर्वानुमान अलर्ट", telemetryHead: "वाहन टेलीमेट्री",
+        verdictHead: "एআই मार्ग निर्णय", optimalLegend: "सुरक्षित (<30)", advisoryLegend: "परामर्श (30-44)",
+        blockedLegend: "अवरुद्ध (≥45)", bypassLegend: "बाईपास"
+      }
+    };
+
+    let currentSelectedLang = 'en';
+
+    function changeLanguage(lang) {
+      currentSelectedLang = lang;
+      const t = I18N[lang] || I18N.en;
+
+      document.getElementById('uiAppSub').textContent = t.appSub;
+      document.getElementById('lblCorridors').textContent = t.corridors;
+      document.getElementById('lblRisk').textContent = t.risk;
+      document.getElementById('lblActive').textContent = t.active;
+      document.getElementById('lblAlerts').textContent = t.alerts;
+      document.getElementById('lblReportBtn').textContent = t.reportBtn;
+      document.getElementById('lblInspection').textContent = t.inspection;
+      document.getElementById('lblMap2').textContent = t.map2;
+      document.getElementById('lblMap1').textContent = t.map1;
+      document.getElementById('lblTelemetry').textContent = t.telemetry;
+      document.getElementById('lblLiveWeatherBtn').textContent = t.liveWeatherBtn;
+      document.getElementById('lblGisLayers').textContent = t.gisLayers;
+      document.getElementById('lblDetourTitle').textContent = t.detourTitle;
+      document.getElementById('lblDispatchBtn').textContent = t.dispatchBtn;
+      document.getElementById('lblAlertsHead').textContent = t.alertsHead;
+      document.getElementById('lblTelemetryHead').textContent = t.telemetryHead;
+      document.getElementById('lblVerdictHead').textContent = t.verdictHead;
+      document.getElementById('lblLegendOptimal').textContent = t.optimalLegend;
+      document.getElementById('lblLegendAdvisory').textContent = t.advisoryLegend;
+      document.getElementById('lblLegendBlocked').textContent = t.blockedLegend;
+      document.getElementById('lblLegendBypass').textContent = t.bypassLegend;
+
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ action: "SET_LANG", lang: lang }));
+      }
+    }
+
+    const REGIONAL_HUBS = {
+      GAU: { name: 'Guwahati', lat: 26.1445, lng: 91.7362, district: 'Kamrup Metro', state: 'Assam', baseRisk: 15, rainSens: 0.3 },
+      SHL: { name: 'Shillong', lat: 25.5788, lng: 91.8933, district: 'East Khasi Hills', state: 'Meghalaya', baseRisk: 20, rainSens: 0.45 },
+      TEZ: { name: 'Tezpur', lat: 26.6528, lng: 92.7926, district: 'Sonitpur', state: 'Assam', baseRisk: 18, rainSens: 0.35 },
+      ITA: { name: 'Itanagar', lat: 27.0844, lng: 93.6053, district: 'Papum Pare', state: 'Arunachal', baseRisk: 38, rainSens: 0.95 },
+      DIB: { name: 'Dibrugarh', lat: 27.4728, lng: 94.9120, district: 'Dibrugarh', state: 'Assam', baseRisk: 14, rainSens: 0.3 },
+      SCH: { name: 'Silchar', lat: 24.8333, lng: 92.7789, district: 'Cachar', state: 'Assam', baseRisk: 22, rainSens: 0.55 },
+      AIZ: { name: 'Aizawl', lat: 23.7307, lng: 92.7173, district: 'Aizawl', state: 'Mizoram', baseRisk: 28, rainSens: 0.6 },
+      IMP: { name: 'Imphal', lat: 24.8170, lng: 93.9368, district: 'Imphal West', state: 'Manipur', baseRisk: 30, rainSens: 0.65 },
+      KOH: { name: 'Kohima', lat: 25.6751, lng: 94.1086, district: 'Kohima', state: 'Nagaland', baseRisk: 25, rainSens: 0.5 },
+      AGT: { name: 'Agartala', lat: 23.8315, lng: 91.2868, district: 'West Tripura', state: 'Tripura', baseRisk: 18, rainSens: 0.35 },
+      GAN: { name: 'Gangtok', lat: 27.3389, lng: 88.6065, district: 'East Sikkim', state: 'Sikkim', baseRisk: 35, rainSens: 0.8 },
+      SLG: { name: 'Siliguri', lat: 26.7271, lng: 88.3953, district: 'Gateway Corridors', state: 'WB', baseRisk: 15, rainSens: 0.25 }
+    };
+
+    const CORRIDORS = [
+      { id: 'c1', name: 'NH37 · Guwahati–Shillong', from: 'GAU', to: 'SHL', baseRisk: 12, rainFactor: 0.35 },
+      { id: 'c2', name: 'NH15 · Guwahati–Tezpur', from: 'GAU', to: 'TEZ', baseRisk: 10, rainFactor: 0.25 },
+      { id: 'c3', name: 'NH13 · Tezpur–Bomdila–Itanagar', from: 'TEZ', to: 'ITA', baseRisk: 42, rainFactor: 0.95 },
+      { id: 'c4', name: 'NH52 · Tezpur–Dibrugarh', from: 'TEZ', to: 'DIB', baseRisk: 15, rainFactor: 0.30 },
+      { id: 'c5', name: 'AH1 · Itanagar–Dibrugarh', from: 'ITA', to: 'DIB', baseRisk: 22, rainFactor: 0.40 },
+      { id: 'c6', name: 'NH27 · Guwahati–Silchar', from: 'GAU', to: 'SCH', baseRisk: 18, rainFactor: 0.45 },
+      { id: 'c7', name: 'NH306 · Silchar–Aizawl', from: 'SCH', to: 'AIZ', baseRisk: 28, rainFactor: 0.55 },
+      { id: 'c8', name: 'NH37A · Silchar–Imphal', from: 'SCH', to: 'IMP', baseRisk: 30, rainFactor: 0.60 },
+      { id: 'c9', name: 'NH29 · Guwahati–Dimapur–Kohima', from: 'GAU', to: 'KOH', baseRisk: 16, rainFactor: 0.35 },
+      { id: 'c10', name: 'NH2 · Kohima–Imphal', from: 'KOH', to: 'IMP', baseRisk: 25, rainFactor: 0.45 },
+      { id: 'c11', name: 'NH8 · Silchar–Agartala', from: 'SCH', to: 'AGT', baseRisk: 18, rainFactor: 0.30 },
+      { id: 'c12', name: 'NH8 · Agartala–Aizawl', from: 'AGT', to: 'AIZ', baseRisk: 22, rainFactor: 0.35 },
+      { id: 'c13', name: 'NH10 · Siliguri–Gangtok', from: 'SLG', to: 'GAN', baseRisk: 35, rainFactor: 0.85 },
+      { id: 'c14', name: 'NH27 · Siliguri–Guwahati', from: 'SLG', to: 'GAU', baseRisk: 14, rainFactor: 0.20 }
+    ];
+
+    const TRACKED_VEHICLES = [
+      { id: 'AS-01-EC-4412', cargo: 'Vaccines & Cold-Chain', icon: 'fa-syringe', corridor: 'c1', progress: 0.65, status: 'ON TIME' },
+      { id: 'NL-07-A-8901', cargo: 'PDS Rice & Grain', icon: 'fa-wheat-awn', corridor: 'c9', progress: 0.40, status: 'ON TIME' },
+      { id: 'AR-02-B-1099', cargo: 'Bridge Truss Steel', icon: 'fa-trowel-bricks', corridor: 'c3', progress: 0.50, status: 'DELAYED' },
+      { id: 'MZ-01-T-7721', cargo: 'POL Petroleum', icon: 'fa-gas-pump', corridor: 'c7', progress: 0.75, status: 'ON TIME' },
+      { id: 'MN-04-P-3342', cargo: 'Emergency Dialysis Meds', icon: 'fa-suitcase-medical', corridor: 'c8', progress: 0.45, status: 'DELAYED' },
+      { id: 'SK-03-C-5561', cargo: 'Vegetables & Agri Bulk', icon: 'fa-carrot', corridor: 'c13', progress: 0.35, status: 'ON TIME' }
+    ];
+
+    let alerts = [
+      { type: 'critical', text: '[AI Model Active] Random Forest model scoring corridors across 512 PostGIS hazard zones.', time: '10:45 AM' },
+      { type: 'warning', text: 'Heavy squall reported across Barail Range, impacting NH27 Silchar sector.', time: '11:15 AM' },
+      { type: 'info', text: 'Telemetry server connected to 6 active convoy units.', time: '11:30 AM' }
+    ];
+
+    let rainIntensity = 45;
+    let activeMapMode = 'single';
+    let currentDetourPayload = null;
+
+    function getRiskColor(val) {
+      if (val >= 45) return 'var(--risk-crit)';
+      if (val >= 30) return 'var(--risk-high)';
+      if (val >= 18) return 'var(--risk-med)';
+      return 'var(--risk-low)';
+    }
+
+    function calcRisk(corridor) {
+      const risk = Math.round(corridor.baseRisk + (corridor.rainFactor * (rainIntensity * 0.75)));
+      return Math.min(100, Math.max(0, risk));
+    }
+
+    function calcDistrictRisk(hub) {
+      const score = Math.round(hub.baseRisk + (hub.rainSens * (rainIntensity * 0.6)));
+      return Math.min(100, Math.max(0, score));
+    }
+
+    const map = L.map('leafletMap', { center: [25.6, 92.8], zoom: 7, zoomControl: true });
+
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics', maxZoom: 18
+    }).addTo(map);
+
+    const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+    });
+
+    L.control.layers({
+      "🛰️ High-Res Satellite": satelliteLayer,
+      "🗺️ Dark Street Matrix": darkLayer
+    }, null, { position: 'topleft' }).addTo(map);
+
+    const layerGroupRoads = L.layerGroup().addTo(map);
+    const layerGroupAlternates = L.layerGroup().addTo(map);
+    const layerGroupHubs = L.layerGroup().addTo(map);
+    const layerGroupVehicles = L.layerGroup().addTo(map);
+    const layerGroupHazardZones = L.layerGroup().addTo(map);
+    const layerGroupRouteEndpoints = L.layerGroup().addTo(map);
+    const layerGroupNetworkWays = L.layerGroup().addTo(map);
+
+    const roadCache = {};
+    const liveFleetMap = {};
+    const vehicleMarkerPool = {};
+    let viewportDebounceTimer = null;
+
+    // Connect WebSocket Mesh with Auto-Reconnect
+    let socket;
+    function connectMesh() {
+      const wsUrl = `ws://${window.location.hostname || '127.0.0.1'}:8000/ws/simulation`;
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        const tag = document.getElementById('wsTag');
+        tag.innerHTML = '<i class="fa-solid fa-bolt"></i> REALTIME MESH ACTIVE';
+        tag.style.borderColor = 'var(--accent-teal)';
+        tag.style.color = 'var(--accent-teal)';
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "SYNC_STATE") {
+            handleSyncedPayload(data.payload);
+          } else if (data.type === "INCIDENT_ALERT") {
+            const inc = data.incident;
+            alerts.unshift({
+              type: inc.severity === 'HIGH' ? 'critical' : 'warning',
+              text: `[FIELD REPORT] ${inc.incident_type}: ${inc.description}`,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            renderAlerts();
+            if (inc.latitude && inc.longitude) {
+              L.circleMarker([inc.latitude, inc.longitude], {
+                radius: 9, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.95
+              }).bindPopup(`<b>${inc.incident_type}</b><br>${inc.description}`).addTo(map);
+            }
+          }
+        } catch (e) {}
+      };
+
+      socket.onclose = () => {
+        const tag = document.getElementById('wsTag');
+        tag.innerHTML = '<i class="fa-solid fa-rotate"></i> RECONNECTING...';
+        tag.style.borderColor = 'var(--risk-crit)';
+        tag.style.color = 'var(--risk-crit)';
+        setTimeout(connectMesh, 1500);
+      };
+    }
+    connectMesh();
+
+    function handleSyncedPayload(payload) {
+      currentDetourPayload = payload;
+      rainIntensity = payload.rain_intensity;
+
+      document.getElementById('searchFromHub').value = payload.origin_key;
+      document.getElementById('searchToHub').value = payload.dest_key;
+      document.getElementById('rainSlider').value = payload.rain_intensity;
+      document.getElementById('rainValDisplay').textContent = `${payload.rain_intensity} mm`;
+
+      if (activeMapMode === 'single') {
+        renderNavigationRoutes(payload);
+      } else {
+        renderSatelliteGIS();
+      }
+      renderDistrictRiskStrip();
+    }
+
+    function renderNavigationRoutes(payload) {
+      layerGroupRoads.clearLayers();
+      layerGroupAlternates.clearLayers();
+      layerGroupRouteEndpoints.clearLayers();
+
+      const originPin = L.divIcon({ className: 'pin-origin', html: 'A', iconSize: [22, 22], iconAnchor: [11, 11] });
+      const destPin = L.divIcon({ className: 'pin-dest', html: 'B', iconSize: [22, 22], iconAnchor: [11, 11] });
+      layerGroupRouteEndpoints.addLayer(L.marker(payload.origin_coord, { icon: originPin }).bindPopup(`<b>Origin</b>`));
+      layerGroupRouteEndpoints.addLayer(L.marker(payload.dest_coord, { icon: destPin }).bindPopup(`<b>Destination</b>`));
+
+      const routes = payload.all_routes;
+      const rDirect = routes[0];
+      const rBypass1 = routes[1];
+      const rBypass2 = routes[2];
+
+      const primPoly = L.polyline(rDirect.waypoints, {
+        color: rDirect.status === 'BLOCKED' ? '#ef4444' : '#22c55e',
+        weight: rDirect.status === 'BLOCKED' ? 4.0 : 5.5,
+        opacity: rDirect.status === 'BLOCKED' ? 0.65 : 0.95,
+        dashArray: rDirect.status === 'BLOCKED' ? '6, 8' : null
+      }).bindPopup(`<b>${rDirect.name}</b><br>Risk: ${rDirect.risk_score}/100<br>Status: <b>${rDirect.status}</b>`);
+      layerGroupRoads.addLayer(primPoly);
+
+      const polyBypass1 = L.polyline(rBypass1.waypoints, {
+        color: rBypass1.status === 'BLOCKED' ? '#f97316' : (rBypass1.status === 'ACTIVE_DETOUR' ? '#2dd4bf' : '#64748b'),
+        weight: rBypass1.status === 'ACTIVE_DETOUR' ? 5.5 : 3.5,
+        opacity: rBypass1.status === 'ACTIVE_DETOUR' ? 0.95 : 0.6,
+        dashArray: rBypass1.status === 'BLOCKED' ? '6, 8' : null
+      }).bindPopup(`<b>${rBypass1.name}</b><br>Risk: ${rBypass1.risk_score}/100<br>Status: <b>${rBypass1.status}</b>`);
+      layerGroupAlternates.addLayer(polyBypass1);
+
+      const polyBypass2 = L.polyline(rBypass2.waypoints, {
+        color: rBypass2.status === 'ACTIVE_DETOUR' ? '#a855f7' : '#475569',
+        weight: rBypass2.status === 'ACTIVE_DETOUR' ? 6.0 : 3.0,
+        opacity: rBypass2.status === 'ACTIVE_DETOUR' ? 0.95 : 0.45
+      }).bindPopup(`<b>${rBypass2.name}</b><br>Risk: ${rBypass2.risk_score}/100<br>Status: <b>${rBypass2.status}</b>`);
+      layerGroupAlternates.addLayer(polyBypass2);
+
+      map.fitBounds(L.featureGroup([primPoly, polyBypass1, polyBypass2]).getBounds(), { padding: [50, 50] });
+
+      const det = payload.suggested_detour;
+      const pill = document.getElementById('tripStatusPill');
+      const passable = document.getElementById('tripPassableDisplay');
+
+      document.getElementById('tripNameDisplay').textContent = payload.corridor_name;
+      document.getElementById('detourSectorLabel').textContent = payload.corridor_name;
+      document.getElementById('primaryRouteTitle').textContent = rDirect.name;
+      document.getElementById('primaryDistTxt').textContent = `${rDirect.distance_km} km`;
+      document.getElementById('primaryEtaTxt').textContent = `${rDirect.estimated_hours} hrs`;
+      document.getElementById('primaryRiskScore').textContent = `${rDirect.risk_score}/100 Risk`;
+
+      if (payload.reroute_required) {
+        pill.className = 'badge-status badge-delay';
+        pill.textContent = `TRIGGER LEVEL ${payload.active_trigger_level}`;
+        passable.textContent = payload.blockage_reason;
+        passable.style.color = 'var(--risk-crit)';
+
+        document.getElementById('primaryStatusTxt').textContent = 'Blocked by Risk';
+        document.getElementById('primaryRouteCard').className = 'route-card blocked';
+
+        document.getElementById('altRouteTitleTxt').textContent = det.name;
+        document.getElementById('altRiskScore').textContent = `${det.risk_score}/100 Risk`;
+        document.getElementById('altDistTxt').textContent = `${det.distance_km} km`;
+        document.getElementById('altEtaTxt').textContent = `${det.estimated_hours} hrs`;
+        document.getElementById('altStatusBadge').textContent = `TRIGGER LEVEL ${payload.active_trigger_level} READY`;
+        document.getElementById('altStatusBadge').className = 'badge-status badge-ontime';
+        document.getElementById('suggestedAltRouteCard').className = 'route-card selected';
+      } else {
+        pill.className = 'badge-status badge-ontime';
+        pill.textContent = 'OPTIMAL (<45)';
+        passable.textContent = payload.blockage_reason;
+        passable.style.color = 'var(--risk-low)';
+
+        document.getElementById('primaryStatusTxt').textContent = 'Clear Highway';
+        document.getElementById('primaryRouteCard').className = 'route-card selected';
+
+        document.getElementById('altRouteTitleTxt').textContent = 'Highway Clear';
+        document.getElementById('altRiskScore').textContent = `${rDirect.risk_score}/100 Risk`;
+        document.getElementById('altDistTxt').textContent = `${rDirect.distance_km} km`;
+        document.getElementById('altEtaTxt').textContent = `${rDirect.estimated_hours} hrs`;
+        document.getElementById('altStatusBadge').textContent = 'NO DETOUR NEEDED';
+        document.getElementById('altStatusBadge').className = 'badge-status badge-ontime';
+        document.getElementById('suggestedAltRouteCard').className = 'route-card';
+      }
+    }
+
+    function pushCorridorChange() {
+      const from = document.getElementById('searchFromHub').value;
+      const to = document.getElementById('searchToHub').value;
+      if (from === to) return;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ action: "SET_CORRIDOR", from: from, to: to }));
+      }
+    }
+
+    let rainDebounceTimer = null;
+    function pushRainChange(val) {
+      document.getElementById('rainValDisplay').textContent = `${val} mm`;
+      clearTimeout(rainDebounceTimer);
+      rainDebounceTimer = setTimeout(() => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ action: "SET_RAIN", rain_mm: Number(val) }));
+        }
+      }, 50);
+    }
+
+    function populateHubSelectors() {
+      const fromSelect = document.getElementById('searchFromHub');
+      const toSelect = document.getElementById('searchToHub');
+      const corridorSelect = document.getElementById('formCorridor');
+
+      fromSelect.innerHTML = '';
+      toSelect.innerHTML = '';
+      corridorSelect.innerHTML = '';
+
+      Object.entries(REGIONAL_HUBS).forEach(([code, h]) => {
+        fromSelect.add(new Option(`${h.name} (${h.state})`, code));
+        toSelect.add(new Option(`${h.name} (${h.state})`, code));
+      });
+
+      CORRIDORS.forEach(c => {
+        corridorSelect.add(new Option(c.name, c.id));
+      });
+
+      fromSelect.value = "SHL";
+      toSelect.value = "KOH";
+    }
+
+    async function pollFleetTelemetry() {
+      try {
+        const res = await fetch(`${BACKEND_BASE}/api/telemetry/active-fleet`);
+        if (res.ok) {
+          const pings = await res.json();
+          if (pings && pings.length > 0) {
+            pings.forEach(p => {
+              liveFleetMap[p.user_id] = {
+                lat: p.latitude, lng: p.longitude,
+                speed: p.speed_kmh, heading: p.heading,
+                recorded_at: p.recorded_at
+              };
+            });
+          }
+        }
+      } catch (e) {}
+
+      TRACKED_VEHICLES.forEach(v => {
+        if (!liveFleetMap[v.id]) {
+          v.progress = (v.progress + 0.008) % 1.0;
+          const nominalSpeed = v.status === 'DELAYED' ? 32 : 46;
+          liveFleetMap[v.id] = {
+            speed: nominalSpeed + Math.floor(Math.random() * 5),
+            isSimulated: true
+          };
+        }
+      });
+
+      renderVehiclesList();
+
+      if (activeMapMode === 'network' && document.getElementById('chkVehicles').checked) {
+        for (const v of TRACKED_VEHICLES) {
+          let targetPos;
+          let speedText = `${v.status}`;
+
+          if (liveFleetMap[v.id] && !liveFleetMap[v.id].isSimulated) {
+            targetPos = [liveFleetMap[v.id].lat, liveFleetMap[v.id].lng];
+            speedText = `${liveFleetMap[v.id].speed} km/h (GPS)`;
+          } else {
+            const corridor = CORRIDORS.find(c => c.id === v.corridor);
+            const roadPoints = roadCache[v.corridor] || [];
+            if (roadPoints.length > 0) {
+              const targetIndex = Math.min(Math.floor(v.progress * roadPoints.length), roadPoints.length - 1);
+              targetPos = roadPoints[targetIndex];
+            }
+            speedText = `${liveFleetMap[v.id]?.speed || 45} km/h`;
+          }
+
+          if (!targetPos) continue;
+
+          if (vehicleMarkerPool[v.id]) {
+            vehicleMarkerPool[v.id].setLatLng(targetPos);
+            vehicleMarkerPool[v.id].setPopupContent(`<b>${v.id}</b><br>Cargo: ${v.cargo}<br>Speed: <b>${speedText}</b>`);
+          } else {
+            const isDelayed = v.status === 'DELAYED';
+            const icon = L.divIcon({
+              className: `custom-vehicle-icon ${isDelayed ? 'delayed' : ''}`,
+              html: `<i class="fa-solid ${v.icon}" style="font-size:12px;"></i>`,
+              iconSize: [24, 24], iconAnchor: [12, 12]
+            });
+            const marker = L.marker(targetPos, { icon: icon })
+              .bindPopup(`<b>${v.id}</b><br>Cargo: ${v.cargo}<br>Speed: <b>${speedText}</b>`);
+            vehicleMarkerPool[v.id] = marker;
+            layerGroupVehicles.addLayer(marker);
+          }
+        }
+      }
+    }
+    setInterval(pollFleetTelemetry, 2500);
+
+    map.on('moveend', () => {
+      if (activeMapMode !== 'network') return;
+      clearTimeout(viewportDebounceTimer);
+      viewportDebounceTimer = setTimeout(fetchViewportRoadsFromPostGIS, 300);
+    });
+
+    async function fetchViewportRoadsFromPostGIS() {
+      const zoom = map.getZoom();
+      if (zoom < 10) {
+        layerGroupNetworkWays.clearLayers();
+        return;
+      }
+
+      const b = map.getBounds();
+      const url = `${BACKEND_BASE}/api/network/roads-in-bounds?min_lat=${b.getSouth()}&min_lon=${b.getWest()}&max_lat=${b.getNorth()}&max_lon=${b.getEast()}&zoom=${zoom}`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const geojson = await res.json();
+
+        layerGroupNetworkWays.clearLayers();
+        L.geoJSON(geojson, {
+          style: function(feat) {
+            const hw = feat.properties.highway;
+            const isTrunk = hw === 'trunk' || hw === 'primary' || hw === 'motorway';
+            return {
+              color: isTrunk ? '#f59e0b' : '#38bdf8',
+              weight: isTrunk ? 3.5 : 2.0,
+              opacity: isTrunk ? 0.85 : 0.65,
+              lineCap: 'round',
+              lineJoin: 'round'
+            };
+          },
+          onEachFeature: function(feat, layer) {
+            layer.bindPopup(`
+              <div style="font-size:11px;">
+                <b>${feat.properties.name || 'Regional Roadway'}</b><br/>
+                Classification: <span class="mono">${feat.properties.highway}</span>
+              </div>
+            `);
+          }
+        }).addTo(layerGroupNetworkWays);
+      } catch (err) {}
+    }
+
+    async function syncLiveWeatherData() {
+      const btn = document.getElementById('btnSyncLiveWeather');
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Syncing...';
+
+      try {
+        const res = await fetch(`${BACKEND_BASE}/api/weather/live-corridor-risk`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+
+        const rain = data.peak_precipitation_mm ? Math.round(data.peak_precipitation_mm * 5.0) : data.regional_rainfall_index;
+        pushRainChange(rain);
+
+        btn.className = 'btn btn-primary';
+        btn.innerHTML = '<i class="fa-solid fa-satellite"></i> Live Synced';
+      } catch (err) {
+        btn.className = 'btn btn-teal';
+        btn.innerHTML = '<i class="fa-solid fa-cloud-showers-heavy"></i> Live Weather';
+      }
+    }
+    document.getElementById('btnSyncLiveWeather').addEventListener('click', syncLiveWeatherData);
+
+    async function fetchRoadGeometry(corridor) {
+      if (roadCache[corridor.id]) return roadCache[corridor.id];
+      const from = REGIONAL_HUBS[corridor.from];
+      const to = REGIONAL_HUBS[corridor.to];
+      
+      const localUrl = `http://127.0.0.1:5000/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+      const fallbackUrl = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+
+      for (const u of [localUrl, fallbackUrl]) {
+        try {
+          const res = await fetch(u);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.routes && data.routes.length > 0) {
+              const coords = data.routes[0].geometry.coordinates.map(pt => [pt[1], pt[0]]);
+              roadCache[corridor.id] = coords;
+              return coords;
+            }
+          }
+        } catch (err) {}
+      }
+      return [[from.lat, from.lng], [to.lat, to.lng]];
+    }
+
+    async function loadPostGISHazardZones() {
+      try {
+        const response = await fetch(`${BACKEND_BASE}/api/hazard-zones/geojson`);
+        if (!response.ok) return;
+        const geojsonData = await response.json();
+
+        layerGroupHazardZones.clearLayers();
+        const hazardLayer = L.geoJSON(geojsonData, {
+          style: function(feature) {
+            const risk = feature.properties.risk_level || 'HIGH';
+            const color = risk === 'CRITICAL' ? '#ef4444' : '#f97316';
+            return { color: color, weight: 2, fillColor: color, fillOpacity: 0.35 };
+          },
+          onEachFeature: function(feature, layer) {
+            const p = feature.properties;
+            layer.bindPopup(`
+              <div style="font-size: 12px;">
+                <strong style="color: #f97316;"><i class="fa-solid fa-triangle-exclamation"></i> ${p.hazard_type || 'HAZARD ZONE'}</strong><br/>
+                <b>${p.zone_name}</b><br/>
+                Risk Level: <b>${p.risk_level}</b><br/>
+                Recorded Landslides: <b>${p.historical_event_count}</b>
+              </div>
+            `);
+          }
+        });
+        layerGroupHazardZones.addLayer(hazardLayer);
+      } catch (err) {}
+    }
+
+    async function renderSatelliteGIS() {
+      if (activeMapMode === 'single') return;
+
+      layerGroupRoads.clearLayers();
+      layerGroupHubs.clearLayers();
+
+      if (document.getElementById('chkRoads').checked) {
+        for (const c of CORRIDORS) {
+          const score = calcRisk(c);
+          const strokeColor = document.getElementById('chkRisk').checked ? getRiskColor(score) : '#60a5fa';
+          const latLngs = await fetchRoadGeometry(c);
+          if (latLngs.length > 0) {
+            const polyline = L.polyline(latLngs, {
+              color: strokeColor, weight: score >= 45 ? 5 : 3, opacity: 0.85, lineCap: 'round', lineJoin: 'round'
+            }).bindPopup(`<strong>${c.name}</strong><br>Risk: ${score}/100`);
+            layerGroupRoads.addLayer(polyline);
+          }
+        }
+      }
+
+      Object.entries(REGIONAL_HUBS).forEach(([code, hub]) => {
+        const risk = calcDistrictRisk(hub);
+        const icon = L.divIcon({ className: 'custom-hub-icon', html: `<span>${code}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] });
+        const marker = L.marker([hub.lat, hub.lng], { icon: icon }).bindPopup(`<b>${hub.name}</b><br>Risk: ${risk}/100`);
+        layerGroupHubs.addLayer(marker);
+      });
+    }
+
+    function setMapMode(mode) {
+      activeMapMode = mode;
+      document.getElementById('btnModeNetwork').classList.toggle('active', mode === 'network');
+      document.getElementById('btnModeSingle').classList.toggle('active', mode === 'single');
+      const tripBox = document.getElementById('tripInfoBox');
+      if (mode === 'single') {
+        tripBox.classList.add('active');
+        layerGroupNetworkWays.clearLayers();
+        if (currentDetourPayload) renderNavigationRoutes(currentDetourPayload);
+      } else {
+        tripBox.classList.remove('active');
+        map.setView([25.6, 92.8], 7);
+        renderSatelliteGIS();
+        fetchViewportRoadsFromPostGIS();
+      }
+      setTimeout(() => map.invalidateSize(), 150);
+    }
+
+    function renderDistrictRiskStrip() {
+      const container = document.getElementById('districtChipsContainer');
+      container.innerHTML = Object.entries(REGIONAL_HUBS).filter(([code]) => code !== 'SLG').map(([code, hub]) => {
+        const risk = calcDistrictRisk(hub);
+        const color = getRiskColor(risk);
+        return `
+          <div class="district-chip">
+            <div class="d-head"><span>${hub.district}</span><span class="mono" style="color:${color};">${risk}%</span></div>
+            <div class="d-bar-bg"><div class="d-bar-fill" style="width:${risk}%; background:${color};"></div></div>
+            <div class="d-meta"><span>${hub.state}</span><span>${risk >= 45 ? 'CRITICAL' : 'SAFE'}</span></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderVehiclesList() {
+      const container = document.getElementById('vehicleListContainer');
+      container.innerHTML = TRACKED_VEHICLES.map(v => {
+        const c = CORRIDORS.find(cor => cor.id === v.corridor);
+        const live = liveFleetMap[v.id];
+        return `
+          <div class="vehicle-row">
+            <div class="vehicle-head"><span><i class="fa-solid ${v.icon}" style="color:var(--accent-marigold);"></i> ${v.id}</span><span class="badge-status ${v.status==='DELAYED'?'badge-delay':'badge-ontime'}">${live?.speed || 46} km/h</span></div>
+            <div class="vehicle-sub"><strong>${v.cargo}</strong> · ${c ? c.name : 'Arterial'}</div>
+          </div>
+        `;
+      }).join('');
+      document.getElementById('kpiVehicles').textContent = TRACKED_VEHICLES.length;
+    }
+
+    function renderAlerts() {
+      const container = document.getElementById('alertFeedContainer');
+      container.innerHTML = alerts.map(a => `
+        <div class="alert-node ${a.type}"><div>${a.text}</div><div class="alert-meta"><span>${a.type.toUpperCase()}</span><span class="mono">${a.time}</span></div></div>
+      `).join('');
+      document.getElementById('kpiAlerts').textContent = alerts.length;
+    }
+
+    ['chkRoads', 'chkVehicles', 'chkReports'].forEach(id => {
+      document.getElementById(id).addEventListener('change', renderSatelliteGIS);
+    });
+
+    document.getElementById('chkRisk').addEventListener('change', (e) => {
+      if (e.target.checked) map.addLayer(layerGroupHazardZones);
+      else map.removeLayer(layerGroupHazardZones);
+    });
+
+    document.getElementById('applyRerouteBtn').addEventListener('click', async () => {
+      if (!currentDetourPayload || !currentDetourPayload.suggested_detour) {
+        alert("Primary route is safe or no active detour calculated yet.");
+        return;
+      }
+      const targetVehicle = TRACKED_VEHICLES.find(x => x.status === 'DELAYED') || TRACKED_VEHICLES[0];
+      targetVehicle.status = 'ON TIME';
+      try {
+        await fetch(`${BACKEND_BASE}/api/telemetry/test-dispatch?vehicle_id=${targetVehicle.id}`, { method: 'POST' });
+      } catch (e) {}
+      alerts.unshift({
+        type: 'critical', text: `[Telephony Dispatched] Driver for ${targetVehicle.id} dialed & SMS sent.`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+      renderVehiclesList();
+      renderAlerts();
+      alert(`Automated Emergency Dispatch enqueued for ${targetVehicle.id}!`);
+    });
+
+    // Report Modal
+    const modal = document.getElementById('reportModal');
+    document.getElementById('openReportModalBtn').addEventListener('click', () => modal.classList.add('active'));
+    document.getElementById('closeReportModalBtn').addEventListener('click', () => modal.classList.remove('active'));
+    document.getElementById('cancelModalBtn').addEventListener('click', () => modal.classList.remove('active'));
+
+    document.getElementById('incidentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const corId = document.getElementById('formCorridor').value;
+      const corridor = CORRIDORS.find(c => c.id === corId);
+      const hub = REGIONAL_HUBS[corridor.from];
+
+      try {
+        await fetch(`${BACKEND_BASE}/api/incidents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reporter_id: "ADMIN_CONSOLE",
+            incident_type: document.getElementById('formType').value,
+            severity: "HIGH",
+            description: document.getElementById('formNotes').value,
+            latitude: hub.lat,
+            longitude: hub.lng
+          })
+        });
+        modal.classList.remove('active');
+      } catch (err) {
+        alert("Report submission failed.");
+      }
+    });
+
+    // Bootstrapping
+    populateHubSelectors();
+    loadPostGISHazardZones();
+    pollFleetTelemetry();
+    renderVehiclesList();
+    renderAlerts();
+    renderDistrictRiskStrip();
+    setMapMode('single');
+    setTimeout(() => map.invalidateSize(), 200);
+  </script>
+</body>
+</html>

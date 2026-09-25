@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Setubandh Driver Navigator</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-dark: #070e17;
+      --panel-bg: rgba(12, 24, 37, 0.95);
+      --card-bg: #122133;
+      --border: #1e3247;
+      --text-main: #f0f4f8;
+      --text-muted: #8ba2b8;
+      --accent-teal: #2dd4bf;
+      --accent-gold: #fbbf24;
+      --risk-low: #22c55e;
+      --risk-crit: #ef4444;
+      --risk-warn: #f97316;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: var(--bg-dark); color: var(--text-main);
+      font-family: 'Inter', sans-serif; height: 100vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    #map { flex: 1; width: 100%; height: 100%; z-index: 1; }
+
+    .top-nav-bar {
+      position: absolute; top: 16px; left: 16px; right: 16px;
+      z-index: 1000; background: var(--panel-bg);
+      border: 1px solid var(--border); border-radius: 14px;
+      padding: 12px 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .nav-header-row { display: flex; justify-content: space-between; align-items: center; }
+    .brand-title { font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+    .brand-title span { color: var(--accent-teal); }
+
+    .sync-status {
+      font-size: 0.65rem; font-weight: 700;
+      background: rgba(45, 212, 191, 0.15); color: var(--accent-teal);
+      border: 1px solid var(--accent-teal); padding: 3px 8px; border-radius: 6px;
+    }
+
+    .corridor-selection { display: flex; gap: 8px; align-items: center; }
+    .route-select {
+      flex: 1; background: var(--card-bg); border: 1px solid var(--border);
+      color: #fff; padding: 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; outline: none;
+    }
+
+    .trip-card {
+      position: absolute; bottom: 110px; left: 16px; right: 16px;
+      max-width: 480px; margin: 0 auto; background: var(--panel-bg);
+      border-radius: 14px; border: 1px solid var(--border);
+      padding: 14px 18px; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .trip-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .status-chip {
+      font-size: 0.72rem; font-weight: 800; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;
+    }
+    .chip-clear { background: rgba(34, 197, 94, 0.15); color: var(--risk-low); border: 1px solid var(--risk-low); }
+    .chip-detour { background: rgba(239, 68, 68, 0.15); color: var(--risk-crit); border: 1px solid var(--risk-crit); }
+
+    .driver-actions {
+      position: absolute; bottom: 20px; left: 16px; right: 16px;
+      max-width: 480px; margin: 0 auto; background: var(--panel-bg);
+      border-radius: 16px; border: 1px solid var(--border);
+      padding: 10px 14px; z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .quick-btn-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 6px; }
+    .quick-btn {
+      padding: 12px 6px; border-radius: 10px; border: none; color: #fff;
+      font-weight: 700; font-size: 0.78rem; cursor: pointer; display: flex;
+      flex-direction: column; align-items: center; gap: 4px;
+    }
+    .btn-landslide { background: var(--risk-crit); }
+    .btn-flood { background: var(--risk-warn); }
+    .btn-blockage { background: #d97706; }
+  </style>
+</head>
+<body>
+
+  <div class="top-nav-bar">
+    <div class="nav-header-row">
+      <div class="brand-title">
+        <i class="fa-solid fa-route" style="color:var(--accent-teal);"></i>
+        Setubandh <span>Drive</span>
+      </div>
+      <span class="sync-status" id="wsStatusTag"><i class="fa-solid fa-link"></i> CONNECTING...</span>
+    </div>
+
+    <div class="corridor-selection">
+      <select class="route-select" id="hubOrigin" onchange="pushUserCorridor()"></select>
+      <i class="fa-solid fa-arrow-right" style="color:var(--text-muted); font-size: 0.8rem;"></i>
+      <select class="route-select" id="hubDestination" onchange="pushUserCorridor()"></select>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Realtime HUD: Updates without clicking buttons -->
+  <div class="trip-card" id="tripCard">
+    <div class="trip-card-header">
+      <span style="font-size: 1rem; font-weight: 700; color: #fff;" id="tripTitle">Direct Lifeline Highway</span>
+      <span class="status-chip chip-clear" id="tripStatus">PASSABLE</span>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-muted);" id="tripMetrics">-- km · -- hrs ETA</div>
+    <div style="font-size: 0.78rem; color: var(--accent-gold); margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border);" id="tripReason">
+      Syncing route...
+    </div>
+  </div>
+
+  <!-- 1-Tap Hazard Reporting -->
+  <div class="driver-actions">
+    <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">1-Tap Hazard Broadcast:</div>
+    <div class="quick-btn-grid">
+      <button class="quick-btn btn-landslide" onclick="reportHazard('Landslide')">
+        <i class="fa-solid fa-mountain"></i> Landslide
+      </button>
+      <button class="quick-btn btn-flood" onclick="reportHazard('Flash Flood')">
+        <i class="fa-solid fa-water"></i> Flood
+      </button>
+      <button class="quick-btn btn-blockage" onclick="reportHazard('Heavy Congestion')">
+        <i class="fa-solid fa-truck-ramp-box"></i> Jam / Block
+      </button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    const REGIONAL_HUBS = {
+      GAU: { name: 'Guwahati', lat: 26.1445, lng: 91.7362 },
+      SHL: { name: 'Shillong', lat: 25.5788, lng: 91.8933 },
+      TEZ: { name: 'Tezpur', lat: 26.6528, lng: 92.7926 },
+      ITA: { name: 'Itanagar', lat: 27.0844, lng: 93.6053 },
+      DIB: { name: 'Dibrugarh', lat: 27.4728, lng: 94.9120 },
+      SCH: { name: 'Silchar', lat: 24.8333, lng: 92.7789 },
+      AIZ: { name: 'Aizawl', lat: 23.7307, lng: 92.7173 },
+      IMP: { name: 'Imphal', lat: 24.8170, lng: 93.9368 },
+      KOH: { name: 'Kohima', lat: 25.6751, lng: 94.1086 },
+      AGT: { name: 'Agartala', lat: 23.8315, lng: 91.2868 },
+      GAN: { name: 'Gangtok', lat: 27.3389, lng: 88.6065 },
+      SLG: { name: 'Siliguri', lat: 26.7271, lng: 88.3953 }
+    };
+
+    const map = L.map('map', { zoomControl: false }).setView([25.6, 92.8], 7);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Esri, Maxar', maxZoom: 18
+    }).addTo(map);
+
+    const layerRoutes = L.layerGroup().addTo(map);
+    const layerMarkers = L.layerGroup().addTo(map);
+
+    let socket;
+    function connectMesh() {
+      // Connects cleanly to the active host over port 8000
+      const wsUrl = `ws://${window.location.hostname || '127.0.0.1'}:8000/ws/simulation`;
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        document.getElementById('wsStatusTag').innerHTML = '<i class="fa-solid fa-link"></i> LIVE MESH ACTIVE';
+        document.getElementById('wsStatusTag').style.color = 'var(--accent-teal)';
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "SYNC_STATE") {
+            renderSynchronizedRoute(data.payload);
+          }
+        } catch (e) {}
+      };
+
+      socket.onclose = () => {
+        document.getElementById('wsStatusTag').innerHTML = '<i class="fa-solid fa-rotate"></i> RECONNECTING...';
+        document.getElementById('wsStatusTag').style.color = 'var(--risk-crit)';
+        setTimeout(connectMesh, 1500);
+      };
+    }
+    connectMesh();
+
+    function renderSynchronizedRoute(payload) {
+      document.getElementById('hubOrigin').value = payload.origin_key;
+      document.getElementById('hubDestination').value = payload.dest_key;
+
+      layerRoutes.clearLayers();
+      layerMarkers.clearLayers();
+
+      const rDirect = payload.all_routes[0];
+      const rBypass1 = payload.all_routes[1];
+      const rBypass2 = payload.all_routes[2];
+
+      const pDirect = L.polyline(rDirect.waypoints, {
+        color: rDirect.status === 'BLOCKED' ? '#ef4444' : '#22c55e',
+        weight: rDirect.status === 'BLOCKED' ? 3.5 : 5.5,
+        opacity: rDirect.status === 'BLOCKED' ? 0.6 : 0.95,
+        dashArray: rDirect.status === 'BLOCKED' ? '6, 8' : null
+      });
+      const pBypass1 = L.polyline(rBypass1.waypoints, {
+        color: rBypass1.status === 'BLOCKED' ? '#f97316' : (rBypass1.status === 'ACTIVE_DETOUR' ? '#2dd4bf' : '#475569'),
+        weight: rBypass1.status === 'ACTIVE_DETOUR' ? 5.5 : 3.0,
+        opacity: rBypass1.status === 'ACTIVE_DETOUR' ? 0.95 : 0.4,
+        dashArray: rBypass1.status === 'BLOCKED' ? '6, 8' : null
+      });
+      const pBypass2 = L.polyline(rBypass2.waypoints, {
+        color: rBypass2.status === 'ACTIVE_DETOUR' ? '#a855f7' : '#334155',
+        weight: rBypass2.status === 'ACTIVE_DETOUR' ? 6.0 : 2.5,
+        opacity: rBypass2.status === 'ACTIVE_DETOUR' ? 0.95 : 0.3
+      });
+
+      layerRoutes.addLayer(pDirect);
+      layerRoutes.addLayer(pBypass1);
+      layerRoutes.addLayer(pBypass2);
+
+      L.marker(payload.origin_coord).addTo(layerMarkers);
+      L.marker(payload.dest_coord).addTo(layerMarkers);
+
+      map.fitBounds(L.featureGroup([pDirect, pBypass1, pBypass2]).getBounds(), { padding: [80, 80] });
+
+      const title = document.getElementById('tripTitle');
+      const status = document.getElementById('tripStatus');
+      const metrics = document.getElementById('tripMetrics');
+      const reason = document.getElementById('tripReason');
+
+      if (payload.reroute_required && payload.suggested_detour) {
+        const det = payload.suggested_detour;
+        title.textContent = det.name;
+        status.textContent = `DETOUR LEVEL ${payload.active_trigger_level}`;
+        status.className = "status-chip chip-detour";
+        metrics.textContent = `${det.distance_km} km · ${det.estimated_hours} hrs ETA`;
+        reason.textContent = payload.blockage_reason;
+      } else {
+        title.textContent = rDirect.name;
+        status.textContent = "SAFE ROUTE";
+        status.className = "status-chip chip-clear";
+        metrics.textContent = `${rDirect.distance_km} km · ${rDirect.estimated_hours} hrs ETA`;
+        reason.textContent = payload.blockage_reason;
+      }
+    }
+
+    function pushUserCorridor() {
+      const from = document.getElementById('hubOrigin').value;
+      const to = document.getElementById('hubDestination').value;
+      if (from === to) return;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ action: "SET_CORRIDOR", from: from, to: to }));
+      }
+    }
+
+    async function reportHazard(type) {
+      const oKey = document.getElementById('hubOrigin').value;
+      const hub = REGIONAL_HUBS[oKey];
+      try {
+        await fetch(`http://${window.location.hostname || '127.0.0.1'}:8000/api/incidents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reporter_id: "DRIVER_APP",
+            incident_type: type,
+            severity: "HIGH",
+            description: `1-Tap Mobile Broadcast: ${type}`,
+            latitude: hub.lat,
+            longitude: hub.lng
+          })
+        });
+        alert(`Hazard "${type}" broadcasted to Central Command.`);
+      } catch (err) {}
+    }
+
+    const oSel = document.getElementById('hubOrigin');
+    const dSel = document.getElementById('hubDestination');
+    Object.entries(REGIONAL_HUBS).forEach(([k, v]) => {
+      oSel.add(new Option(v.name, k));
+      dSel.add(new Option(v.name, k));
+    });
+    oSel.value = "SHL";
+    dSel.value = "KOH";
+
+    setTimeout(() => map.invalidateSize(), 200);
+  </script>
+</body>
+</html>
